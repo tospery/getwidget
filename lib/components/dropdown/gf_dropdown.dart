@@ -114,10 +114,10 @@ class GFDropdown<T> extends StatefulWidget {
   final dynamic dropdownButtonColor;
 
   @override
-  State<GFDropdown<T>> createState() => _GFDropdownState<T>();
+  _GFDropdownState createState() => _GFDropdownState();
 }
 
-class _GFDropdownState<T> extends State<GFDropdown<T>> {
+class _GFDropdownState extends State<GFDropdown> {
   @override
   Widget build(BuildContext context) => Material(
         color: widget.dropdownButtonColor,

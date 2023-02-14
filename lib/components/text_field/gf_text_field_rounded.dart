@@ -68,7 +68,7 @@ class GFTextFieldRounded extends StatefulWidget {
       this.buildCounter,
       this.scrollPhysics,
       this.autofillHints,
-      this.autoValidateMode = AutovalidateMode.disabled})
+      this.autovalidateMode = AutovalidateMode.disabled})
       : super(key: key);
 
   final Color normalbordercolor;
@@ -133,7 +133,7 @@ class GFTextFieldRounded extends StatefulWidget {
   final InputCounterWidgetBuilder? buildCounter;
   final ScrollPhysics? scrollPhysics;
   final Iterable<String>? autofillHints;
-  final AutovalidateMode autoValidateMode;
+  final AutovalidateMode autovalidateMode;
 
   @override
   _GFTextFieldRoundedState createState() => _GFTextFieldRoundedState();
@@ -243,5 +243,5 @@ class _GFTextFieldRoundedState extends State<GFTextFieldRounded> {
           buildCounter: widget.buildCounter,
           scrollPhysics: widget.scrollPhysics,
           autofillHints: widget.autofillHints,
-          autoValidateMode: widget.autoValidateMode));
+          autovalidateMode: widget.autovalidateMode));
 }
