@@ -1,5 +1,27 @@
 # Changelog
 
+## 4.0.0 - 2023-08-24
+
+- Added padding and margin properties for gf_search_bar
+- Added drag option for circular progress bar in gf_progress_bar
+- Replaced topbar with content parameter in gf_alert
+- Fixed social buttons assets issue
+- Fixed alignment issue for gf_toggle text
+- Fixed shadow issue for gf_list_tile when no color passed
+- Updated Readme
+
+## 3.1.1 - 2023-04-14
+
+- Code formatted for better score
+
+## 3.1.0 - 2023-04-14
+
+- Added drag functionality for Linear progress bar
+- Added validation in multiselect widget, GF-CheckBox, GF-Radio, GF-DropDown
+- GF-Alert design updated and made it more customizable
+- Fixed text crop issue in GF-Toggle
+- Added the async function for search query
+- Mouse support for GF-Carousel
 
 ## 3.0.1 - 2022-06-02
 

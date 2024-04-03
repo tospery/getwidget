@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:getwidget/getwidget.dart';
 
@@ -30,6 +32,8 @@ class GFProgressBar extends StatefulWidget {
     this.padding,
     this.alignment = MainAxisAlignment.start,
     this.clipLinearGradient = false,
+    this.isDragable = false,
+    this.onProgressChanged,
   }) : super(key: key) {
     // if (linearGradient != null) {
     //   throw ArgumentError(' linearGradient cannot be given');
@@ -119,6 +123,15 @@ class GFProgressBar extends StatefulWidget {
   /// type of double which should be from 0 to 1 to indicate the progress of the ProgressBars
   final double percentage;
 
+  /// return the current value of progressbar
+  /// to get latest value please set isDragable field to true
+  /// this feature is only available for linear progress type
+  final ValueChanged<double>? onProgressChanged;
+
+  /// set true if you want the change this progressbar value
+  /// this feature is only available for linear progress type
+  final bool? isDragable;
+
   @override
   _GFProgressBarState createState() => _GFProgressBarState();
 }
@@ -129,6 +142,7 @@ class _GFProgressBarState extends State<GFProgressBar>
   Animation? _animation, circularAnimation;
   double _progressPercent = 0;
   double _percentage = 0;
+  double _progress = 0.5;
 
   @override
   void initState() {
@@ -199,7 +213,7 @@ class _GFProgressBarState extends State<GFProgressBar>
                     ? oldWidget.percentage
                     : 0.0,
                 end: widget.percentage)
-            .animate(_animationController!);
+            .animate(_animationController ?? AnimationController(vsync: this));
         _animationController?.forward(from: 0);
       } else {
         _updateprogressPercent();
@@ -215,12 +229,40 @@ class _GFProgressBarState extends State<GFProgressBar>
                     ? oldWidget.percentage
                     : 0.0,
                 end: widget.percentage)
-            .animate(circularAnimationController!);
+            .animate(circularAnimationController ??
+                AnimationController(vsync: this));
         circularAnimationController?.forward(from: 0);
       } else {
         _updateProgress();
       }
     }
+  }
+
+  void _onDragUpdate(BuildContext context, DragUpdateDetails details) {
+    final RenderBox box = context.findRenderObject() as RenderBox;
+    final Offset localOffset = box.globalToLocal(details.globalPosition);
+    final double width = box.size.width;
+    double progress = localOffset.dx / width;
+    progress = double.parse(progress.toStringAsFixed(2));
+    setState(() {
+      _percentage = progress;
+      _progressPercent = progress;
+    });
+
+    if (widget.onProgressChanged != null) {
+      widget.onProgressChanged!(progress);
+    }
+  }
+
+  void _onDragUpdateCircular(Offset position, Size size) {
+    final dx = position.dx - size.width / 2;
+    final dy = position.dy - size.height / 2;
+    final angle = atan2(dy, dx);
+    final progress = angle / (2 * pi) + 0.5;
+
+    setState(() {
+      _progress = progress.clamp(0.0, 1.0);
+    });
   }
 
   @override
@@ -239,36 +281,51 @@ class _GFProgressBarState extends State<GFProgressBar>
         height: widget.lineHeight,
         padding: widget.padding,
         child: widget.type == GFProgressType.linear
-            ? CustomPaint(
-                painter: LinearPainter(
-                  progressHeadType: widget.progressHeadType,
-                  fromRightToLeft: widget.fromRightToLeft,
-                  progress: _progressPercent,
-                  child: widget.child,
-                  progressBarColor: widget.progressBarColor,
-                  linearGradient: widget.linearGradient,
-                  backgroundColor: widget.backgroundColor,
-                  circleWidth: widget.lineHeight,
-                  mask: widget.mask,
-                  clipLinearGradient: widget.clipLinearGradient,
-                ),
-                child: (widget.child != null) ? widget.child : Container(),
-              )
-            : CustomPaint(
-                painter: CirclePainter(
+            ? GestureDetector(
+                onHorizontalDragUpdate: (details) {
+                  if (widget.isDragable == true) {
+                    _onDragUpdate(context, details);
+                  }
+                },
+                child: CustomPaint(
+                  painter: LinearPainter(
                     progressHeadType: widget.progressHeadType,
-                    progress: _percentage * 360,
+                    fromRightToLeft: widget.fromRightToLeft,
+                    progress: _progressPercent,
+                    child: widget.child,
                     progressBarColor: widget.progressBarColor,
-                    backgroundColor: widget.backgroundColor,
-                    circleStartAngle: widget.circleStartAngle,
-                    radius: (widget.radius! / 2) - widget.circleWidth / 2,
-                    circleWidth: widget.circleWidth,
-                    reverse: widget.reverse,
                     linearGradient: widget.linearGradient,
-                    mask: widget.mask),
-                child: (widget.child != null)
-                    ? Center(child: widget.child)
-                    : Container(),
+                    backgroundColor: widget.backgroundColor,
+                    circleWidth: widget.lineHeight,
+                    mask: widget.mask,
+                    clipLinearGradient: widget.clipLinearGradient,
+                  ),
+                  child: (widget.child != null) ? widget.child : Container(),
+                ),
+              )
+            : GestureDetector(
+                onPanUpdate: (details) {
+                  if (widget.isDragable == true) {
+                    final size = context.size ?? const Size(0, 0);
+                    _onDragUpdateCircular(details.localPosition, size);
+                  }
+                },
+                child: CustomPaint(
+                  painter: CirclePainter(
+                      progressHeadType: widget.progressHeadType,
+                      progress: _progress * 360,
+                      progressBarColor: widget.progressBarColor,
+                      backgroundColor: widget.backgroundColor,
+                      circleStartAngle: widget.circleStartAngle,
+                      radius: (widget.radius! / 2) - widget.circleWidth / 2,
+                      circleWidth: widget.circleWidth,
+                      reverse: widget.reverse,
+                      linearGradient: widget.linearGradient,
+                      mask: widget.mask),
+                  child: (widget.child != null)
+                      ? Center(child: widget.child)
+                      : Container(),
+                ),
               ));
 
     if (hasSetWidth) {
@@ -321,15 +378,15 @@ class LinearPainter extends CustomPainter {
     this.mask,
     this.clipLinearGradient,
   }) {
-    _paintBackground.color = backgroundColor!;
+    _paintBackground.color = backgroundColor ?? Colors.transparent;
     _paintBackground.style = PaintingStyle.stroke;
-    _paintBackground.strokeWidth = circleWidth!;
+    _paintBackground.strokeWidth = circleWidth ?? 0.0;
 
     _paintLine.color = progress.toString() == '0.0' && progressBarColor != null
-        ? progressBarColor!.withOpacity(0)
-        : progressBarColor!;
+        ? progressBarColor ?? Colors.transparent.withOpacity(0)
+        : progressBarColor ?? Colors.transparent;
     _paintLine.style = PaintingStyle.stroke;
-    _paintLine.strokeWidth = circleWidth!;
+    _paintLine.strokeWidth = circleWidth ?? 0.0;
 
     if (progressHeadType == GFProgressHeadType.square) {
       _paintLine.strokeCap = StrokeCap.butt;
@@ -360,13 +417,13 @@ class LinearPainter extends CustomPainter {
       _paintLine.maskFilter = mask;
     }
     if (fromRightToLeft!) {
-      final xProgress = size.width - size.width * progress!;
+      final xProgress = size.width - size.width * (progress ?? 0.0);
       if (linearGradient != null) {
         _paintLine.shader = _createGradientShaderRightToLeft(size, xProgress);
       }
       canvas.drawLine(end, Offset(xProgress, size.height / 2), _paintLine);
     } else {
-      final xProgress = size.width * progress!;
+      final xProgress = size.width * (progress ?? 0.0);
       if (linearGradient != null) {
         _paintLine.shader = _createGradientShaderLeftToRight(size, xProgress);
       }
@@ -375,8 +432,9 @@ class LinearPainter extends CustomPainter {
   }
 
   Shader? _createGradientShaderRightToLeft(Size size, double xProgress) {
-    final Offset shaderEndPoint =
-        clipLinearGradient! ? Offset.zero : Offset(xProgress, size.height);
+    final Offset shaderEndPoint = clipLinearGradient ?? false
+        ? Offset.zero
+        : Offset(xProgress, size.height);
     return linearGradient?.createShader(
       Rect.fromPoints(
         Offset(size.width, size.height),
@@ -386,7 +444,7 @@ class LinearPainter extends CustomPainter {
   }
 
   Shader? _createGradientShaderLeftToRight(Size size, double xProgress) {
-    final Offset shaderEndPoint = clipLinearGradient!
+    final Offset shaderEndPoint = clipLinearGradient ?? false
         ? Offset(size.width, size.height)
         : Offset(xProgress, size.height);
     return linearGradient?.createShader(
@@ -414,12 +472,12 @@ class CirclePainter extends CustomPainter {
       this.reverse,
       this.arcBackgroundColor,
       this.mask}) {
-    _paintBackground.color = backgroundColor!;
+    _paintBackground.color = backgroundColor ?? Colors.transparent;
     _paintBackground.style = PaintingStyle.stroke;
-    _paintBackground.strokeWidth = circleWidth!;
-    _paintLine.color = progressBarColor!;
+    _paintBackground.strokeWidth = circleWidth ?? 0.0;
+    _paintLine.color = progressBarColor ?? Colors.transparent;
     _paintLine.style = PaintingStyle.stroke;
-    _paintLine.strokeWidth = circleWidth!;
+    _paintLine.strokeWidth = circleWidth ?? 0.0;
     if (progressHeadType == GFProgressHeadType.circular) {
       _paintLine.strokeCap = StrokeCap.round;
     } else if (progressHeadType == GFProgressHeadType.square) {
@@ -473,7 +531,7 @@ class CirclePainter extends CustomPainter {
       );
     } else {
       final start = radians(-90.0 + fixedStartAngle);
-      final end = radians(progress! * circleStartAngleFixedMargin);
+      final end = radians((progress ?? 0.0) * circleStartAngleFixedMargin);
       canvas.drawArc(
         Rect.fromCircle(
           center: child,

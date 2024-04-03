@@ -1,27 +1,33 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 typedef QueryListItemBuilder<T> = Widget Function(T item);
 typedef OnItemSelected<T> = void Function(T item);
-typedef QueryBuilder<T> = List<T> Function(
+
+typedef QueryBuilder<T> = FutureOr<List<T>> Function(
   String query,
   List<T> list,
 );
 
 class GFSearchBar<T> extends StatefulWidget {
   /// search bar with various customization option
-  const GFSearchBar({
-    required this.searchList,
-    required this.overlaySearchListItemBuilder,
-    required this.searchQueryBuilder,
-    Key? key,
-    this.textColor,
-    this.controller,
-    this.onItemSelected,
-    this.hideSearchBoxWhenItemSelected = false,
-    this.overlaySearchListHeight,
-    this.noItemsFoundWidget,
-    this.searchBoxInputDecoration,
-  }) : super(key: key);
+  const GFSearchBar(
+      {required this.searchList,
+      required this.overlaySearchListItemBuilder,
+      required this.searchQueryBuilder,
+      Key? key,
+      this.textColor,
+      this.circularProgressIndicatorColor,
+      this.controller,
+      this.onItemSelected,
+      this.hideSearchBoxWhenItemSelected = false,
+      this.overlaySearchListHeight,
+      this.noItemsFoundWidget,
+      this.searchBoxInputDecoration,
+      this.padding,
+      this.margin})
+      : super(key: key);
 
   /// List of text or [Widget] reference for users
   final List<T> searchList;
@@ -35,7 +41,7 @@ class GFSearchBar<T> extends StatefulWidget {
   /// defines the height of [searchList] overlay container
   final double? overlaySearchListHeight;
 
-  /// can search and filter the [searchList]
+  /// can search and filter the query with synchronous and asynchronous function  [searchList]
   final QueryBuilder<T> searchQueryBuilder;
 
   /// displays the [Widget] when the search item failed
@@ -43,6 +49,9 @@ class GFSearchBar<T> extends StatefulWidget {
 
   /// defines Colors of Text in the searchBar
   final Color? textColor;
+
+  /// defines Colors of CircularProgressIndicator in the searchBar
+  final Color? circularProgressIndicatorColor;
 
   /// defines what to do with onSelect SearchList item
   final OnItemSelected<T>? onItemSelected;
@@ -53,6 +62,12 @@ class GFSearchBar<T> extends StatefulWidget {
   /// defines the input controller of searchBox
   final TextEditingController? controller;
 
+  /// defines the padding of searchBox
+  final EdgeInsets? padding;
+
+  /// defines the margin of searchBox
+  final EdgeInsets? margin;
+
   @override
   MySingleChoiceSearchState<T> createState() => MySingleChoiceSearchState<T>();
 }
@@ -60,6 +75,7 @@ class GFSearchBar<T> extends StatefulWidget {
 class MySingleChoiceSearchState<T> extends State<GFSearchBar<T?>> {
   late List<T> _list;
   late List<T?> _searchList;
+  bool? isLoading;
   bool? isFocused;
   late FocusNode _focusNode;
   late ValueNotifier<T?> notifier;
@@ -101,22 +117,27 @@ class MySingleChoiceSearchState<T> extends State<GFSearchBar<T?>> {
           ..clear()
           ..addAll(_list);
         if (overlaySearchList == null) {
-          onTextFieldFocus();
+          onTextFieldFocus(
+              circularIndicatorColor: widget.circularProgressIndicatorColor);
         } else {
           overlaySearchList?.markNeedsBuild();
         }
       }
     });
-    textController.addListener(() {
+    textController.addListener(() async {
       final text = textController.text;
       if (text.trim().isNotEmpty) {
+        isLoading = true;
         _searchList.clear();
-
         final List<T?> filterList =
-            widget.searchQueryBuilder(text, widget.searchList);
+            await widget.searchQueryBuilder(text, widget.searchList);
+        _searchList.clear();
         _searchList.addAll(filterList);
+        isLoading = false;
+
         if (overlaySearchList == null) {
-          onTextFieldFocus();
+          onTextFieldFocus(
+              circularIndicatorColor: widget.circularProgressIndicatorColor);
         } else {
           overlaySearchList?.markNeedsBuild();
         }
@@ -125,7 +146,8 @@ class MySingleChoiceSearchState<T> extends State<GFSearchBar<T?>> {
           ..clear()
           ..addAll(_list);
         if (overlaySearchList == null) {
-          onTextFieldFocus();
+          onTextFieldFocus(
+              circularIndicatorColor: widget.circularProgressIndicatorColor);
         } else {
           overlaySearchList?.markNeedsBuild();
         }
@@ -148,8 +170,9 @@ class MySingleChoiceSearchState<T> extends State<GFSearchBar<T?>> {
         MediaQuery.of(context).size.height / 4;
 
     searchBox = Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-      margin: const EdgeInsets.only(bottom: 12),
+      padding: widget.padding ??
+          const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      margin: widget.margin ?? const EdgeInsets.only(bottom: 12),
       child: TextField(
         controller: textController,
         focusNode: _focusNode,
@@ -168,7 +191,7 @@ class MySingleChoiceSearchState<T> extends State<GFSearchBar<T?>> {
                 ),
                 suffixIcon: const Icon(Icons.search),
                 border: InputBorder.none,
-                hintText: 'Search here...',
+                hintText: (notifier.value ?? 'Search here...').toString(),
                 contentPadding: const EdgeInsets.only(
                   left: 16,
                   right: 20,
@@ -215,7 +238,7 @@ class MySingleChoiceSearchState<T> extends State<GFSearchBar<T?>> {
     }
   }
 
-  void onTextFieldFocus() {
+  void onTextFieldFocus({Color? circularIndicatorColor}) {
     setState(() {
       isSearchBoxSelected = true;
     });
@@ -224,7 +247,7 @@ class MySingleChoiceSearchState<T> extends State<GFSearchBar<T?>> {
         context.findRenderObject() as RenderBox;
     final RenderBox overlay =
         // ignore: avoid_as
-        Overlay.of(context)?.context.findRenderObject() as RenderBox;
+        Overlay.of(context).context.findRenderObject() as RenderBox;
     final width = searchBoxRenderBox.size.width;
     final position = RelativeRect.fromRect(
       Rect.fromPoints(
@@ -299,16 +322,30 @@ class MySingleChoiceSearchState<T> extends State<GFSearchBar<T?>> {
                             ),
                           ],
                         )
-                      : widget.noItemsFoundWidget != null
+                      : isLoading ?? false
                           ? Center(
-                              child: widget.noItemsFoundWidget,
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 10),
+                                child: CircularProgressIndicator(
+                                  color: circularIndicatorColor ?? Colors.blue,
+                                ),
+                              ),
                             )
-                          : Container(
-                              child: const Text('no items found'),
-                            ),
+                          : widget.noItemsFoundWidget != null
+                              ? Center(
+                                  child: widget.noItemsFoundWidget,
+                                )
+                              : Container(
+                                  margin: const EdgeInsets.all(8),
+                                  child: const Text(
+                                    'No items found',
+                                    style: TextStyle(fontSize: 18),
+                                  ),
+                                ),
                 ),
               ),
             ));
-    Overlay.of(context)?.insert(overlaySearchList!);
+    Overlay.of(context).insert(overlaySearchList!);
   }
 }
